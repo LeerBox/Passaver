@@ -2,6 +2,19 @@
 
 All notable changes to Passaver. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-11-03
+
+### Security
+
+- A Fix now counts only in the tab it opened. In 1.3.0, while a Fix was in progress, a password used on any page of the same site, in any tab, could replace the saved password of the login being fixed.
+- During a Fix, a page without HTTPS can no longer change a login saved on HTTPS.
+- Only a password Passaver generated in the Fix tab during the Fix is applied without asking. Any other password asks for confirmation first.
+- Closing the Fix tab ends the Fix.
+
+### Changed
+
+- The "How the seal works" diagram in the README reads top to bottom, as one connected flow.
+
 ## [1.3.0] - 2026-11-03
 
 ### Added
@@ -41,6 +54,7 @@ First public release.
 - Generated-password history, strong-password suggestions on sign-up forms, and automatic saving of new accounts.
 - Vault health score, optional PIN with auto-lock, and a privacy scan that keeps personal data out of the repository.
 
+[1.3.1]: https://github.com/LeerBox/Passaver/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/LeerBox/Passaver/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/LeerBox/Passaver/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/LeerBox/Passaver/releases/tag/v1.2.0

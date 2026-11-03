@@ -146,18 +146,15 @@ Add a PIN and the vault needs both this PC and the PIN to open. Passaver locks i
 ## How the seal works
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph pc["Your PC, your Windows account"]
-        ext["Passaver extension<br/>decrypted vault in memory only"]
-        host["Passaver helper"]
-        key[("device.key<br/>sealed by Windows DPAPI")]
-        vault[("vault.bin<br/>AES-256-GCM ciphertext")]
-        ext <-->|"key and ciphertext<br/>over a local pipe"| host
-        host --- key
-        host --- vault
+        direction LR
+        ext["Passaver extension<br/>decrypted vault in memory only"] <-->|"local pipe"| host["Passaver helper"]
+        host --- key[("device.key<br/>sealed by Windows DPAPI")]
+        host --- vault[("vault.bin<br/>AES-256-GCM ciphertext")]
     end
-    copy["The same two files<br/>copied to another PC"] --> check{"Same machine and<br/>same Windows user?"}
-    check -->|"No"| sealed["Key stays sealed:<br/>the copy is unreadable"]
+    pc -. "both files copied<br/>to another PC" .-> check{"Same machine and<br/>same Windows user?"}
+    check -->|"No"| sealed["The key stays sealed:<br/>the copy is unreadable"]
 ```
 
 1. **On first use, a random 256-bit key is created.** Windows DPAPI seals it twice, first to this machine and then to your Windows account. A fingerprint of the machine and the account is mixed in.

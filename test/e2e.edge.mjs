@@ -242,6 +242,66 @@ try {
   assert.equal((await msg({ type: 'list' })).entries.filter((e) => e.username === 'fix@example.com').length, 1, 'no duplicate login');
   console.log('✓ Undo after a Fix puts the old password back');
 
+  // 10. A Fix is narrow: its own tab only, and only passwords generated during it apply silently.
+  const rotation = () => evalIn(popS, `chrome.storage.session.get('rotation').then((r) => r.rotation || null)`);
+  assert.equal((await msg({ type: 'startRotation', id: weak.id })).ok, true);
+  assert.ok((await rotation())?.tabId, 'Fix is bound to the tab it opened');
+  const { targetId: rotT, sessionId: rotS } = await attachTo(`login.example.net:${site.port}/account/password`);
+
+  // A generated password used in another tab of the same site leaves the login alone.
+  await cdp('Page.navigate', { url: `${hostB}/account/password` }, tabS);
+  await sleep(1500);
+  await focusField('pw');
+  await waitFor(() => shadowHasText(tabS, 'Use a strong password'), 'suggestion in another tab');
+  assert.ok(await clickText(tabS, 'Use a strong password'));
+  await sleep(600);
+  await evalIn(tabS, `document.getElementById('go').click(); true`);
+  await sleep(2000);
+  assert.equal((await msg({ type: 'reveal', id: weak.id })).password, 'sunshine1', 'a Fix is ignored in other tabs');
+  assert.ok(!(await shadowHasText(tabS, 'Password updated')));
+  if (await shadowHasText(tabS, 'Not now')) await clickText(tabS, 'Not now');
+  console.log('✓ a Fix in progress is ignored in other tabs');
+
+  // In the Fix tab, an older generated password asks first instead of applying silently.
+  await msg({ type: 'recordGenerated', password: 'Older-Generated-7!', url: `${hostA}/signup` });
+  await sleep(1000);
+  await cdp('Page.reload', {}, rotS);
+  await sleep(1800);
+  await cdp('Page.bringToFront', {}, rotS);
+  await evalIn(rotS, `document.getElementById('current').value='sunshine1'; document.getElementById('pw').focus(); true`);
+  await waitFor(() => shadowHasText(rotS, 'Use the password you generated'), 'older generated password offered');
+  assert.ok(await clickText(rotS, 'Use the password you generated'));
+  await sleep(600);
+  await evalIn(rotS, `document.getElementById('go').click(); true`);
+  await waitFor(() => shadowHasText(rotS, 'Update saved password?'), 'confirmation for a password not made in this Fix');
+  assert.ok(!(await shadowHasText(rotS, 'Password updated')));
+  assert.equal((await msg({ type: 'reveal', id: weak.id })).password, 'sunshine1', 'nothing applied without confirmation');
+  assert.ok(await clickText(rotS, 'Not now'));
+  console.log('✓ in the Fix tab, only passwords generated during the Fix apply without asking');
+
+  await cdp('Target.closeTarget', { targetId: rotT });
+  await waitFor(async () => (await rotation()) === null, 'Fix ended when its tab closed');
+  console.log('✓ closing the Fix tab ends the Fix');
+
+  // 11. A page without HTTPS can never change a login saved on HTTPS, even during a Fix.
+  await msg({ type: 'upsert', entry: { url: 'https://login.example.net', username: 'secure@example.com', password: 'Https-Only-5!' } });
+  const secureLogin = (await msg({ type: 'list' })).entries.find((e) => e.username === 'secure@example.com');
+  assert.equal((await msg({ type: 'startRotation', id: secureLogin.id })).ok, true);
+  const fixTab = (await rotation()).tabId;
+  await evalIn(popS, `chrome.tabs.update(${fixTab}, { url: '${hostA}/account/password' }).then(() => true)`);
+  const { sessionId: httpS } = await attachTo(`login.example.net:${site.port}/account/password`);
+  await sleep(1800);
+  await cdp('Page.bringToFront', {}, httpS);
+  await evalIn(httpS, `document.getElementById('current').value='Https-Only-5!'; document.getElementById('pw').focus(); true`);
+  await waitFor(() => shadowHasText(httpS, 'Use a strong password'), 'suggestion on the http page');
+  assert.ok(await clickText(httpS, 'Use a strong password'));
+  await sleep(600);
+  await evalIn(httpS, `document.getElementById('go').click(); true`);
+  await sleep(2000);
+  assert.equal((await msg({ type: 'reveal', id: secureLogin.id })).password, 'Https-Only-5!', 'https login untouched by an http page');
+  assert.ok(!(await shadowHasText(httpS, 'Password updated')));
+  console.log('✓ a page without HTTPS can never change an HTTPS login');
+
   console.log('✓ all e2e checks passed');
 } finally {
   await close();
