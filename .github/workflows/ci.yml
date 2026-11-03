@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: Also run the end-to-end test in Edge
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Privacy scan
+        run: node tools/privacy-scan.mjs
+      - name: Unit and native host tests
+        run: npm test
+      - name: Package
+        run: npm run pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passaver-build
+          path: dist/
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Register native host
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File host\install.ps1
+      - name: End-to-end test in Edge
+        run: npm run test:e2e

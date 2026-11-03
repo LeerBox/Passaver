@@ -1,0 +1,24 @@
+# Build output
+dist/
+node_modules/
+
+# Never commit a vault, a device key or signing material
+device.key
+vault.bin
+vault.bak
+vault.bin.tmp
+*.pem
+*.pfx
+*.p12
+*.crx
+.env
+.env.*
+
+# Local tooling
+*.log
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+desktop.ini
+.DS_Store

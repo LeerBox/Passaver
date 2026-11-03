@@ -1,0 +1,20 @@
+{
+  "name": "passaver",
+  "version": "1.2.0",
+  "description": "Device-bound password saver for Chrome, Edge and Brave on Windows.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node test/lib.test.mjs && node test/host.test.mjs",
+    "test:e2e": "node test/e2e.edge.mjs",
+    "scan": "node tools/privacy-scan.mjs",
+    "pack": "node tools/pack.mjs",
+    "icons": "node tools/render-icons.mjs",
+    "screenshots": "node tools/screenshots.mjs",
+    "hooks": "git config core.hooksPath .githooks"
+  }
+}

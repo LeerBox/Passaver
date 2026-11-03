@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Passaver</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="bar">
+    <img src="icons/mark.svg" alt="" class="mark" />
+    <div class="ident">
+      <div class="wordmark">Passaver</div>
+      <div id="seal" class="seal"><span class="seal-dot"></span><span id="sealText">Connecting to this device</span></div>
+    </div>
+    <button id="ring" class="ring" title="Vault health" aria-label="Vault health" hidden>
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="16.5" class="ring-track" />
+        <circle cx="20" cy="20" r="16.5" class="ring-value" id="ringValue" />
+      </svg>
+      <span id="ringScore">–</span>
+    </button>
+    <button id="lockBtn" class="icon-btn" title="Lock now" aria-label="Lock now" hidden>
+      <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+    </button>
+  </header>
+
+  <!-- PIN lock -->
+  <section id="lockScreen" class="gate" hidden>
+    <img src="icons/mark.svg" alt="" class="gate-mark" />
+    <h1>Passaver is locked</h1>
+    <p id="lockDevice">Enter your PIN to open the vault on this device.</p>
+    <form id="unlockForm" autocomplete="off">
+      <input id="unlockPin" class="field pin" type="password" placeholder="PIN" autocomplete="off" maxlength="64" aria-label="PIN" />
+      <p id="unlockMsg" class="msg bad" hidden></p>
+      <button id="unlockBtn" type="submit" class="btn primary block">Unlock</button>
+    </form>
+  </section>
+
+  <!-- Host missing / foreign vault -->
+  <section id="setup" class="gate" hidden>
+    <img src="icons/mark.svg" alt="" class="gate-mark" />
+    <h1 id="setupTitle">Connect Passaver to this computer</h1>
+    <p id="setupText"></p>
+    <ol id="setupSteps" class="steps">
+      <li>Open the <b>host</b> folder that came with Passaver.</li>
+      <li>Right-click <b>install.ps1</b> and choose <b>Run with PowerShell</b>.</li>
+      <li>Restart the browser.</li>
+    </ol>
+    <label class="kv">Extension ID<code id="extId"></code></label>
+    <button id="retryBtn" class="btn primary block">Check again</button>
+  </section>
+
+  <main id="app" hidden>
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input id="search" type="search" placeholder="Search your vault" autocomplete="off" spellcheck="false" aria-label="Search your vault" />
+      <kbd id="searchKey">/</kbd>
+    </div>
+
+    <section id="view-site" class="view">
+      <div id="siteCard" class="site-card"></div>
+      <div id="siteList" class="rows"></div>
+    </section>
+
+    <section id="view-vault" class="view" hidden>
+      <div id="chips" class="chips" role="toolbar" aria-label="Filter"></div>
+      <div id="vaultList" class="rows"></div>
+      <details id="neverBox" class="never" hidden>
+        <summary>Sites where Passaver never offers to save</summary>
+        <div id="neverList"></div>
+      </details>
+    </section>
+
+    <section id="view-gen" class="view" hidden>
+      <div class="gen">
+        <output id="genOut" class="gen-out" aria-live="polite"></output>
+        <div class="gen-tools">
+          <button id="genNew" class="btn ghost" title="New password">
+            <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>New
+          </button>
+          <button id="genCopy" class="btn ghost" title="Copy password">
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h8" /></svg>Copy
+          </button>
+        </div>
+      </div>
+      <div class="meter" id="genMeter"><i></i></div>
+      <p id="genStrength" class="meter-label"></p>
+      <label class="slider"><span>Length</span><input id="genLen" type="range" min="8" max="64" value="20" /><b id="genLenVal">20</b></label>
+      <div class="toggles">
+        <label><input type="checkbox" id="gUpper" checked /><span>A–Z</span></label>
+        <label><input type="checkbox" id="gLower" checked /><span>a–z</span></label>
+        <label><input type="checkbox" id="gDigits" checked /><span>0–9</span></label>
+        <label><input type="checkbox" id="gSymbols" checked /><span>!@#$</span></label>
+        <label class="wide"><input type="checkbox" id="gAmbig" checked /><span>Skip look-alikes like l, 1, O and 0</span></label>
+      </div>
+      <button id="genUse" class="btn primary block">Save as a new login</button>
+
+      <div class="history-head">
+        <h2>Generated passwords</h2>
+        <span id="histCount" class="state" hidden></span>
+      </div>
+      <p class="note">Every password you copy or use from Passaver is kept here, encrypted, with the site it was made for. Nothing gets lost while you create an account.</p>
+      <div id="histList" class="rows"></div>
+    </section>
+
+    <section id="view-settings" class="view" hidden>
+      <div class="panel">
+        <div class="panel-head"><h2>PIN lock</h2><span id="pinState" class="state">Off</span></div>
+        <p id="pinHelp" class="note"></p>
+        <form id="pinForm" class="stack" autocomplete="off">
+          <input id="pinCurrent" class="field pin" type="password" placeholder="Current PIN" maxlength="64" />
+          <input id="pinNew" class="field pin" type="password" placeholder="New PIN, at least 4 characters" maxlength="64" />
+          <input id="pinConfirm" class="field pin" type="password" placeholder="Repeat the new PIN" maxlength="64" />
+          <p id="pinMsg" class="msg bad" hidden></p>
+          <div class="actions">
+            <button type="button" id="pinRemove" class="btn quiet danger" hidden>Remove PIN</button>
+            <button type="submit" id="pinSubmit" class="btn primary">Set PIN</button>
+          </div>
+        </form>
+      </div>
+      <div id="lockOpts" class="panel" hidden>
+        <div class="panel-head"><h2>Auto-lock</h2></div>
+        <label class="labeled">Lock after Passaver is idle for
+          <select id="autoLock" class="field">
+            <option value="5">5 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="240">4 hours</option>
+            <option value="0">Keep unlocked until the browser closes</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="lockOnScreen" /> Also lock when Windows locks (Win+L)</label>
+      </div>
+      <div class="panel quiet-panel">
+        <div class="panel-head"><h2>How your vault is protected</h2></div>
+        <p class="note">Every login is encrypted with AES-256. The key is sealed by Windows to <b id="aboutDevice">this computer</b> and your Windows account<span id="aboutPin"></span>, so a copy of the vault cannot be opened anywhere else.</p>
+        <p class="note dim" id="aboutVersion"></p>
+      </div>
+    </section>
+  </main>
+
+  <nav id="nav" class="nav" hidden>
+    <button class="nav-btn active" data-view="site">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>This site
+    </button>
+    <button class="nav-btn" data-view="vault">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="12" cy="12" r="3" /><path d="M12 9V7M15 12h2" /></svg>Vault
+    </button>
+    <button class="nav-btn" data-view="gen">
+      <svg viewBox="0 0 24 24"><path d="m4 20 10-10M14 4v2M18 8h2M17 5l1-1M10 6h2M18 12v2" /></svg>Generate
+      <span id="genBadge" class="nav-badge" hidden></span>
+    </button>
+    <button class="nav-btn" data-view="settings">
+      <svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.4 3.4 8.2 8 9 4.6-.8 8-4.6 8-9V6l-8-3Z" /><path d="m9 12 2 2 4-4" /></svg>Security
+    </button>
+  </nav>
+
+  <!-- Add / edit -->
+  <section id="editor" class="sheet" hidden role="dialog" aria-labelledby="edTitle">
+    <div class="sheet-head">
+      <button id="edBack" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg></button>
+      <h2 id="edTitle">New login</h2>
+    </div>
+    <form id="edForm" class="stack" autocomplete="off">
+      <label class="labeled">Website<input id="edUrl" class="field" placeholder="example.com" required /></label>
+      <label class="labeled">Username or email<input id="edUser" class="field" placeholder="name@example.com" /></label>
+      <label class="labeled">Password
+        <span class="pw">
+          <input id="edPass" class="field mono" type="password" required />
+          <button type="button" id="edShow" class="icon-btn" title="Show password" aria-label="Show password">
+            <svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+          </button>
+          <button type="button" id="edGen" class="icon-btn" title="Generate a strong password" aria-label="Generate a strong password">
+            <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+          </button>
+        </span>
+      </label>
+      <div class="meter" id="edMeter"><i></i></div>
+      <p id="edAdvice" class="meter-label"></p>
+      <label class="labeled"><span>Label <span class="dim">(optional)</span></span><input id="edLabel" class="field" placeholder="Work account" /></label>
+      <p id="edError" class="msg bad" hidden></p>
+      <div class="actions">
+        <button type="button" id="edDelete" class="btn quiet danger" hidden>Delete</button>
+        <button type="submit" id="edSave" class="btn primary">Save login</button>
+      </div>
+    </form>
+  </section>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

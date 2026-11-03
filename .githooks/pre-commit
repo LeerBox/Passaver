@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks commits that contain personal or device-specific data.
+# Enable once with: npm run hooks
+exec node tools/privacy-scan.mjs --staged
