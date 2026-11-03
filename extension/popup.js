@@ -428,6 +428,10 @@ function renderSite() {
     if (!e.fillable) btn.title = 'Saved on a secure (HTTPS) page';
     btn.addEventListener('click', () => fill(e));
     const row = loginRow(e, { onActivate: () => e.fillable && fill(e), primary: btn });
+    if (!e.exact) {
+      const note = node('span', 'tag soft', `Saved for ${shortHost(e.host)}`);
+      row.querySelector('.sub').prepend(note);
+    }
     row.addEventListener('dblclick', () => openEditor(e));
     list.append(row);
   }
@@ -435,7 +439,8 @@ function renderSite() {
   add.style.marginTop = '4px';
   add.addEventListener('click', () => openEditor(null, { url: state.page.host }));
   list.append(add);
-  select(0); // Enter fills the best login right away
+  // Enter fills the best login right away, but only one saved on this exact host.
+  select(state.siteEntries[0]?.exact ? 0 : -1);
 }
 
 // ---- Vault ---------------------------------------------------------------------------------------

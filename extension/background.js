@@ -89,6 +89,9 @@ function matchesFor(page) {
 /** Never send a login saved on https into a plain-http page. */
 const canFill = (entry, page) => entry.site === page.site && (page.secure || !entry.secure);
 
+/** Saved on this exact host. Only these are filled without an explicit, labelled choice. */
+const isExact = (entry, page) => entry.host === page.host;
+
 function normalizeTarget(input) {
   const raw = String(input || '').trim();
   if (!raw) return null;
@@ -326,7 +329,7 @@ async function onCaptured(msg, sender) {
     await vault.ensureLoaded();
     const d = vault.data();
     if (d.never.includes(page.site)) return { prompt: false };
-    const sameSite = d.entries.filter((e) => e.site === page.site);
+    const sameSite = d.entries.filter((e) => e.host === page.host);
     existing = sameSite.find((e) => e.username === username) || null;
     if (!existing && !username && sameSite.length === 1) existing = sameSite[0];
     if (existing && existing.password === password) return { prompt: false };
@@ -446,7 +449,8 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
     return;
   }
   touch();
-  const best = matchesFor(page).find((e) => canFill(e, page));
+  // Keyboard fill never picks a login saved on a different host.
+  const best = matchesFor(page).find((e) => canFill(e, page) && isExact(e, page));
   if (best) chrome.tabs.sendMessage(tab.id, { type: 'fill', id: best.id }).catch(() => {});
 });
 
@@ -477,7 +481,9 @@ const contentHandlers = {
     const entries = matchesFor(page);
     if (sender.frameId === 0) setBadge(sender.tab.id, entries.length ? String(entries.length) : '');
     return {
-      entries: entries.filter((e) => canFill(e, page)).map((e) => ({ id: e.id, username: e.username, title: e.title || '' })),
+      entries: entries
+        .filter((e) => canFill(e, page))
+        .map((e) => ({ id: e.id, username: e.username, title: e.title || '', exact: isExact(e, page), host: e.host })),
       blockedInsecure: entries.some((e) => !canFill(e, page)),
       generated: unsavedFor(vault.data(), page.site).slice(0, 3).map((h) => ({ id: h.id, created: h.created })),
     };
@@ -654,7 +660,7 @@ const popupHandlers = {
     const issues = analyze(vault.data().entries);
     return {
       page,
-      entries: matchesFor(page).map((e) => ({ ...publicEntry(e, issues), fillable: canFill(e, page) })),
+      entries: matchesFor(page).map((e) => ({ ...publicEntry(e, issues), fillable: canFill(e, page), exact: isExact(e, page) })),
       generated: unsavedFor(vault.data(), page.site),
     };
   },

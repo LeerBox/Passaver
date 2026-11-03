@@ -15,6 +15,13 @@ assert.equal(siteOf('alice.github.io'), 'alice.github.io');
 assert.equal(siteOf('192.168.1.1'), '192.168.1.1');
 assert.equal(siteOf('localhost'), 'localhost');
 assert.notEqual(siteOf('example.com.evil.net'), siteOf('example.com'));
+// Shared hosting: each customer's subdomain is its own site.
+assert.notEqual(siteOf('alice.onrender.com'), siteOf('mallory.onrender.com'));
+assert.notEqual(siteOf('a.workers.dev'), siteOf('b.workers.dev'));
+assert.equal(siteOf('shop.myshopify.com'), 'shop.myshopify.com');
+assert.equal(siteOf('files.bucket.s3.amazonaws.com'), 'bucket.s3.amazonaws.com', 'three-part suffix wins');
+assert.equal(siteOf('wordpress.com'), 'wordpress.com', 'the platform itself stays one site');
+assert.equal(siteOf('myblog.wordpress.com'), 'myblog.wordpress.com');
 assert.equal(parseUrl('chrome://settings'), null);
 assert.deepEqual(parseUrl('http://WWW.Example.com/login'), { origin: 'http://www.example.com', host: 'www.example.com', site: 'example.com', secure: false });
 

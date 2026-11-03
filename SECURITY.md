@@ -12,7 +12,7 @@ Please don't open a public issue for a security problem. Use **Security → Repo
 | Device key | A random 256-bit key is wrapped by Windows DPAPI twice, first with machine scope and then with user scope. The entropy is SHA-256 of the machine GUID and the Windows user SID. The key can only be unwrapped by the same Windows account on the same Windows installation. |
 | Optional PIN | Vault key = HKDF-SHA256(device key ‖ PBKDF2-SHA256(PIN, 600,000 iterations)). The PIN is never stored. After 5 wrong attempts, each further attempt waits exponentially longer, up to 1 hour. |
 | Storage | The vault and the wrapped key live in `%LOCALAPPDATA%\Passaver\data`. Writes are atomic and keep one backup. A revision check stops two browsers from overwriting each other. |
-| Filling | A frame receives a password only after the background checks that frame's own origin. Logins match by registrable domain. A login saved on HTTPS is never filled into HTTP. |
+| Filling | A login fills automatically (keyboard shortcut, Enter in the popup) only on the exact host where it was saved. Logins from sibling hosts of the same registrable domain are offered only as a choice labelled with their host, and a sign-in there never overwrites them. Shared-hosting suffixes such as `onrender.com` and `workers.dev` isolate each customer subdomain. A frame receives a password only after its own origin is checked, and a login saved on HTTPS is never filled into HTTP. |
 | Network | Passaver makes no network requests and has no telemetry. Site icons come from the browser's local favicon cache. |
 
 ## What it does not protect against

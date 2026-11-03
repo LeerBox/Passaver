@@ -40,7 +40,7 @@ You still get the convenience. Logins are saved as you sign in and filled with o
   - Auto-lock after a time you choose, and when Windows locks.
   - Brute-force delays on wrong PINs.
 - **Built to resist phishing.**
-  - Logins match by registrable domain.
+  - A login fills automatically only on the exact host where it was saved. One from another subdomain is offered with its host named, so choosing it is always deliberate.
   - HTTPS logins are never filled into HTTP pages.
   - A frame only receives a password after its own origin is checked.
 - **Private by design.** No account, no cloud, no telemetry, and no network requests at all.

@@ -7,7 +7,12 @@ import { startEdge, startSite, sleep } from './harness.mjs';
 
 const site = await startSite();
 const base = `http://127.0.0.1:${site.port}`;
-const { cdp, evalIn, waitFor, clickText, shadowHasText, openTab, msg, popS, dataDir, close } = await startEdge();
+// Two hosts of one site, served by the local test server.
+const hostA = `http://login.example.net:${site.port}`;
+const hostB = `http://www.example.net:${site.port}`;
+const { cdp, evalIn, waitFor, clickText, shadowHasText, openTab, msg, popS, dataDir, close } = await startEdge({
+  args: ['--host-resolver-rules=MAP login.example.net 127.0.0.1, MAP www.example.net 127.0.0.1'],
+});
 
 try {
   const status = await msg({ type: 'status' });
@@ -15,6 +20,11 @@ try {
   console.log('✓ native host connected, vault unlocked');
 
   const { sessionId: tabS } = await openTab(`${base}/login`);
+  // Focus events only fire reliably in the front tab of the focused window.
+  const focusField = async (id) => {
+    await cdp('Page.bringToFront', {}, tabS);
+    await evalIn(tabS, `document.getElementById('${id}').focus(); true`);
+  };
   await sleep(1500);
 
   // 1. Sign in -> save prompt
@@ -35,7 +45,7 @@ try {
   // 2. One-click fill from the in-page dropdown
   await cdp('Page.navigate', { url: `${base}/login` }, tabS);
   await sleep(1500);
-  await evalIn(tabS, `document.getElementById('email').focus(); true`);
+  await focusField('email');
   await waitFor(() => shadowHasText(tabS, 'user@test.com'), 'fill dropdown');
   assert.ok(await clickText(tabS, 'user@test.com'), 'click dropdown entry');
   const filled = await waitFor(async () => {
@@ -83,7 +93,7 @@ try {
   assert.equal((await msg({ type: 'status' })).code, 'LOCKED');
   await cdp('Page.navigate', { url: `${base}/login` }, tabS);
   await sleep(1500);
-  await evalIn(tabS, `document.getElementById('pw').focus(); true`);
+  await focusField('pw');
   await waitFor(() => shadowHasText(tabS, 'Unlock Passaver'), 'locked dropdown');
   console.log('✓ locked: page offers "Unlock Passaver" instead of logins');
 
@@ -122,7 +132,7 @@ try {
   // 7. Sign-up: suggested password is kept, then auto-saved when the account is created
   await cdp('Page.navigate', { url: `${base}/signup` }, tabS);
   await sleep(1500);
-  await evalIn(tabS, `document.getElementById('pw').focus(); true`);
+  await focusField('pw');
   await waitFor(() => shadowHasText(tabS, 'Use a strong password'), 'strong password suggestion');
   assert.ok(await clickText(tabS, 'Use a strong password'));
   const [p1, p2] = await waitFor(async () => {
@@ -149,7 +159,7 @@ try {
   // Undo keeps the generated password in history, and the site reminds about it
   await cdp('Page.navigate', { url: `${base}/signup` }, tabS);
   await sleep(1500);
-  await evalIn(tabS, `document.getElementById('pw').focus(); true`);
+  await focusField('pw');
   await waitFor(() => shadowHasText(tabS, 'Use a strong password'), 'suggestion again');
   assert.ok(await clickText(tabS, 'Use a strong password'));
   await sleep(800);
@@ -161,7 +171,7 @@ try {
   assert.equal(forSite.generated.length, 1, 'unsaved generated password is still offered for this site');
   await cdp('Page.navigate', { url: `${base}/signup` }, tabS);
   await sleep(1500);
-  await evalIn(tabS, `document.getElementById('pw').focus(); true`);
+  await focusField('pw');
   await waitFor(() => shadowHasText(tabS, 'Use the password you generated'), 'reuse generated suggestion');
   console.log('✓ after Undo the password stays in history and the page offers it again');
 
@@ -170,6 +180,26 @@ try {
   hist = await msg({ type: 'history' });
   assert.ok(hist.items.some((h) => h.site === 'github.com' && !h.savedAs));
   console.log('✓ copied generator passwords are kept with their site');
+
+  // 8. Credential scope: another host of the same site needs a deliberate, labelled choice
+  await msg({ type: 'upsert', entry: { url: hostA, username: 'scope@example.com', password: 'Scope-Host-A-1!' } });
+  const onB = await msg({ type: 'forUrl', url: `${hostB}/login` });
+  const scoped = onB.entries.find((e) => e.username === 'scope@example.com');
+  assert.equal(scoped.exact, false, 'login from another host is not an exact match');
+  assert.equal((await msg({ type: 'forUrl', url: `${hostA}/login` })).entries.find((e) => e.username === 'scope@example.com').exact, true);
+  await cdp('Page.navigate', { url: `${hostB}/login` }, tabS);
+  await sleep(1500);
+  await focusField('email');
+  await waitFor(() => shadowHasText(tabS, 'Saved for login.example.net'), 'cross-host login labelled with its host');
+  console.log('✓ login from a sibling host is offered only with its host named');
+
+  // A password typed on host B must not silently "update" host A's login.
+  await evalIn(tabS, `document.getElementById('email').value='scope@example.com'; document.getElementById('pw').value='Typed-On-B-2!'; document.getElementById('go').click(); true`);
+  await waitFor(() => shadowHasText(tabS, 'Save this login?'), 'new-login prompt on host B');
+  assert.ok(!(await shadowHasText(tabS, 'Update saved password?')));
+  assert.ok(await clickText(tabS, 'Not now'));
+  assert.equal((await msg({ type: 'reveal', id: scoped.id })).password, 'Scope-Host-A-1!', "host A's password unchanged");
+  console.log("✓ signing in on a sibling host never overwrites another host's login");
 
   console.log('✓ all e2e checks passed');
 } finally {

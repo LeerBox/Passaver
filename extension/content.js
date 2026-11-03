@@ -242,6 +242,7 @@
     .tx { min-width: 0; }
     .u { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .s { font-size: 11.5px; color: var(--slate); }
+    .s.other { color: var(--brass); }
     .card { top: 16px; right: 16px; width: 336px; border-radius: 14px; padding: 14px; animation: in .16s ease-out; }
     .card::before { content: ""; position: absolute; left: 14px; right: 14px; top: -1px; height: 2px; border-radius: 2px; background: var(--brass); }
     .row { display: flex; align-items: center; gap: 11px; }
@@ -394,7 +395,10 @@
       const name = m.username || '(no username)';
       it.append(el('div', 'av', name.charAt(0).toUpperCase()));
       const tx = el('div', 'tx');
-      tx.append(el('div', 'u', name), el('div', 's', m.title || 'Fill username and password'));
+      // A login from another host of this site is shown with that host, so the
+      // choice is deliberate (shared hosting can put strangers on sibling hosts).
+      const sub = m.exact === false ? `Saved for ${m.host.replace(/^www\./, '')}` : m.title || 'Fill username and password';
+      tx.append(el('div', 'u', name), el('div', m.exact === false ? 's other' : 's', sub));
       it.append(tx);
       dd.append(it);
     }
