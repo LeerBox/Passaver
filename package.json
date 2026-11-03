@@ -15,6 +15,7 @@
     "pack": "node tools/pack.mjs",
     "icons": "node tools/render-icons.mjs",
     "screenshots": "node tools/screenshots.mjs",
+    "diagrams": "node tools/diagrams.mjs",
     "hooks": "git config core.hooksPath .githooks"
   }
 }

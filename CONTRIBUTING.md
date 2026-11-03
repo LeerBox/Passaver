@@ -27,6 +27,7 @@ Run all three before opening a pull request.
 | --- | --- |
 | `npm run icons` | Renders `extension/icons/*.png` from `extension/icons/mark.svg` |
 | `npm run screenshots` | Regenerates the README banner and `docs/screenshots/light` and `dark` from demo data, with the placeholder device name `YOUR-PC` |
+| `npm run diagrams` | Redraws the README diagrams in `docs/diagrams/light` and `dark` |
 | `npm run pack` | Builds the release zips in `dist/` after the privacy scan passes |
 
 ## Releasing

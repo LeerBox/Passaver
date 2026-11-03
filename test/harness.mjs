@@ -74,8 +74,9 @@ export async function startSite() {
  * @param {object} opts
  * @param {object} [opts.env] extra environment for Edge (and therefore the native host)
  * @param {string[]} [opts.args] extra Edge command-line flags
+ * @param {boolean} [opts.extension] load Passaver (false: a plain browser, e.g. to render images)
  */
-export async function startEdge({ env = {}, args = [] } = {}) {
+export async function startEdge({ env = {}, args = [], extension = true } = {}) {
   const profile = mkdtempSync(join(tmpdir(), 'passaver-edge-'));
   const dataDir = mkdtempSync(join(tmpdir(), 'passaver-data-'));
   const port = 9300 + Math.floor(Math.random() * 500);
@@ -83,7 +84,7 @@ export async function startEdge({ env = {}, args = [] } = {}) {
     EDGE,
     [
       '--headless=new', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`,
-      `--load-extension=${extDir}`, `--disable-extensions-except=${extDir}`,
+      ...(extension ? [`--load-extension=${extDir}`, `--disable-extensions-except=${extDir}`] : []),
       '--no-first-run', '--no-default-browser-check', '--disable-features=msEdgeSidebarV2', ...args, 'about:blank',
     ],
     { env: { ...process.env, ...env, PASSAVER_DATA_DIR: dataDir }, stdio: 'ignore' }
@@ -206,6 +207,7 @@ export async function startEdge({ env = {}, args = [] } = {}) {
       waiters.delete(m.id);
       m.error ? w.rej(new Error(m.error.message)) : w.res(m.result);
     };
+    if (!extension) return { cdp, evalIn, waitFor, screenshot, openTab, close };
     const sw = await waitFor(async () => {
       const { targetInfos } = await cdp('Target.getTargets');
       return targetInfos.find((t) => t.type === 'service_worker' && t.url.startsWith(`chrome-extension://${EXT_ID}/`));

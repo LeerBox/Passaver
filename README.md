@@ -102,18 +102,12 @@ The ring in the header scores your vault from 0 to 100. Passaver flags these pro
   </picture>
 </p>
 
-```mermaid
-sequenceDiagram
-    actor You
-    participant P as Passaver
-    participant S as The website
-    You->>P: Fix a weak password
-    P->>S: Opens /.well-known/change-password
-    S-->>You: Change-password form
-    P->>You: Offers a strong password in the form
-    You->>S: Saves the change
-    P->>P: Updates the saved login, with Undo
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/dark/fix-flow.png">
+    <img src="docs/diagrams/light/fix-flow.png" width="880" alt="What happens when you press Fix, in five steps. 1, you: press Fix on a weak or reused login. 2, Passaver: opens the site at /.well-known/change-password. 3, Passaver: offers a strong password right in the site's own form. 4, you: save the change on the website, as usual. 5, Passaver: updates the login, and Undo puts the old password back.">
+  </picture>
+</p>
 
 <p align="center">
   <picture>
@@ -145,17 +139,12 @@ Add a PIN and the vault needs both this PC and the PIN to open. Passaver locks i
 
 ## How the seal works
 
-```mermaid
-flowchart TB
-    subgraph pc["Your PC, your Windows account"]
-        direction LR
-        ext["Passaver extension<br/>decrypted vault in memory only"] <-->|"local pipe"| host["Passaver helper"]
-        host --- key[("device.key<br/>sealed by Windows DPAPI")]
-        host --- vault[("vault.bin<br/>AES-256-GCM ciphertext")]
-    end
-    pc -. "both files copied<br/>to another PC" .-> check{"Same machine and<br/>same Windows user?"}
-    check -->|"No"| sealed["The key stays sealed:<br/>the copy is unreadable"]
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/dark/seal.png">
+    <img src="docs/diagrams/light/seal.png" width="880" alt="How the seal works. On your PC and Windows account, the Passaver extension decrypts the vault in memory only and talks to the Passaver helper over a local pipe. The helper keeps two files: device.key, the key sealed by Windows DPAPI, and vault.bin, your logins encrypted with AES-256-GCM. If both files are copied to another PC, Windows won't unseal the key, so the copied vault stays unreadable.">
+  </picture>
+</p>
 
 1. **On first use, a random 256-bit key is created.** Windows DPAPI seals it twice, first to this machine and then to your Windows account. A fingerprint of the machine and the account is mixed in.
 2. **The extension encrypts the whole vault with AES-256-GCM.** That covers websites, usernames, passwords and generated-password history. The decrypted copy exists only in the extension's memory.
@@ -293,6 +282,7 @@ There are no dependencies; Node.js 22 or later is enough.
 | `npm run test:e2e` | The whole extension in a throwaway Edge profile with a temporary vault |
 | `npm run scan` | Privacy scan: blocks user paths, computer names, real e-mail addresses, keys and vault files |
 | `npm run screenshots` | Regenerates this README's banner and screenshots, light and dark, from demo data |
+| `npm run diagrams` | Redraws the diagrams in this README, light and dark |
 | `npm run pack` | Builds the release zips and checksums in `dist/`, after the privacy scan passes |
 | `npm run hooks` | Runs the privacy scan before every commit |
 
@@ -300,7 +290,7 @@ There are no dependencies; Node.js 22 or later is enough.
 extension/   Manifest V3 extension: background.js, content.js, popup.*, lib/
 host/        Windows helper (DPAPI key seal, vault storage), install and uninstall scripts
 test/        unit, helper and end-to-end tests, plus the Edge test harness
-tools/       privacy scan, packaging, icon, screenshot and banner rendering
+tools/       privacy scan, packaging, icon, screenshot, banner and diagram rendering
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers the release process, and [CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
