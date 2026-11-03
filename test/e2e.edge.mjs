@@ -10,7 +10,7 @@ const base = `http://127.0.0.1:${site.port}`;
 // Two hosts of one site, served by the local test server.
 const hostA = `http://login.example.net:${site.port}`;
 const hostB = `http://www.example.net:${site.port}`;
-const { cdp, evalIn, waitFor, clickText, shadowHasText, openTab, msg, popS, dataDir, close } = await startEdge({
+const { cdp, evalIn, waitFor, clickText, shadowHasText, openTab, attachTo, msg, popS, dataDir, close } = await startEdge({
   args: ['--host-resolver-rules=MAP login.example.net 127.0.0.1, MAP www.example.net 127.0.0.1'],
 });
 
@@ -200,6 +200,47 @@ try {
   assert.ok(await clickText(tabS, 'Not now'));
   assert.equal((await msg({ type: 'reveal', id: scoped.id })).password, 'Scope-Host-A-1!', "host A's password unchanged");
   console.log("✓ signing in on a sibling host never overwrites another host's login");
+
+  // ...and pressing Save there creates a login for host B instead of updating host A's.
+  await cdp('Page.navigate', { url: `${hostB}/login` }, tabS);
+  await sleep(1500);
+  await evalIn(tabS, `document.getElementById('email').value='scope@example.com'; document.getElementById('pw').value='Saved-On-B-3!'; document.getElementById('go').click(); true`);
+  await waitFor(() => shadowHasText(tabS, 'Save this login?'), 'save prompt on host B');
+  assert.ok(await clickText(tabS, 'Save'));
+  await waitFor(async () => (await msg({ type: 'list' })).entries.some((e) => e.host === 'www.example.net' && e.username === 'scope@example.com'), 'host B login created');
+  assert.equal((await msg({ type: 'reveal', id: scoped.id })).password, 'Scope-Host-A-1!', "Save on host B left host A's password alone");
+  // The editor follows the same rule.
+  await msg({ type: 'upsert', entry: { url: `${hostB}`, username: 'scope@example.com', password: 'Editor-On-B-4!' } });
+  assert.equal((await msg({ type: 'reveal', id: scoped.id })).password, 'Scope-Host-A-1!', "editor on host B left host A's password alone");
+  console.log('✓ Save and the editor stay on their own host');
+
+  // 9. Guided Fix: change a weak password through the site's change-password page.
+  await msg({ type: 'upsert', entry: { url: hostA, username: 'fix@example.com', password: 'sunshine1' } });
+  const weak = (await msg({ type: 'list' })).entries.find((e) => e.username === 'fix@example.com');
+  assert.ok(weak.issues.includes('weak'));
+  assert.equal((await msg({ type: 'startRotation', id: weak.id })).ok, true);
+  const { sessionId: fixS } = await attachTo('/account/password');
+  console.log('✓ Fix opened the site\'s change-password page via /.well-known/change-password');
+  await sleep(1500);
+  await cdp('Page.bringToFront', {}, fixS);
+  await evalIn(fixS, `document.getElementById('current').value='sunshine1'; document.getElementById('pw').focus(); true`);
+  await waitFor(() => shadowHasText(fixS, 'Use a strong password'), 'strong password offered on change form');
+  assert.ok(await clickText(fixS, 'Use a strong password'));
+  const [n1, n2, cur] = await waitFor(async () => {
+    const v = await evalIn(fixS, `['pw','pw2','current'].map((id) => document.getElementById(id).value)`);
+    return v[0] ? v : null;
+  }, 'new password filled');
+  assert.equal(n1, n2, 'new password and confirmation match');
+  assert.equal(cur, 'sunshine1', 'current-password field left alone');
+  await evalIn(fixS, `document.getElementById('go').click(); true`);
+  await waitFor(() => shadowHasText(fixS, 'Password updated'), 'password updated card');
+  assert.equal((await msg({ type: 'reveal', id: weak.id })).password, n1, 'login now has the new password');
+  assert.ok(!(await msg({ type: 'list' })).entries.find((e) => e.id === weak.id).issues.includes('weak'));
+  console.log('✓ Fix: strong password filled on the change form and the login updated itself');
+  assert.ok(await clickText(fixS, 'Undo'));
+  await waitFor(async () => (await msg({ type: 'reveal', id: weak.id })).password === 'sunshine1', 'undo restored old password');
+  assert.equal((await msg({ type: 'list' })).entries.filter((e) => e.username === 'fix@example.com').length, 1, 'no duplicate login');
+  console.log('✓ Undo after a Fix puts the old password back');
 
   console.log('✓ all e2e checks passed');
 } finally {

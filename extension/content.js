@@ -450,10 +450,14 @@
     const tx = el('div');
     const auto = p.kind === 'autosaved';
     tx.append(
-      el('div', 'ttl', auto ? 'Login saved' : p.kind === 'update' ? 'Update saved password?' : 'Save this login?'),
+      el('div', 'ttl', auto ? (p.updated ? 'Password updated' : 'Login saved') : p.kind === 'update' ? 'Update saved password?' : 'Save this login?'),
       el('div', 'sub', `${p.username || 'No username'} on ${p.host.replace(/^www\./, '')}`)
     );
-    if (auto) tx.append(el('div', 'sub', 'You used a password Passaver generated, so it was saved for you.'));
+    if (auto) {
+      tx.append(el('div', 'sub', p.updated
+        ? 'Passaver saved the new password it generated. Undo puts the old one back.'
+        : 'You used a password Passaver generated, so it was saved for you.'));
+    }
     const close = el('button', 'x', '×');
     close.title = 'Not now';
     row.append(logo, tx, close);

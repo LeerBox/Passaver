@@ -48,11 +48,12 @@
 }
 
 * { box-sizing: border-box; }
-html { overflow-x: hidden; }
+html { overflow: hidden; }
 body {
   margin: 0;
   width: 380px;
-  min-height: 540px;
+  height: 560px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--paper);
@@ -97,8 +98,9 @@ b { font-weight: 600; }
 kbd { font: 11px var(--mono); color: var(--faint); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; line-height: 17px; }
 
 /* ---- views ---------------------------------------------------------------------- */
-#app { flex: 1; display: flex; flex-direction: column; }
-.view { flex: 1; padding: 10px 14px 16px; }
+#app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.view { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 16px; }
+.view, .gate, .sheet { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 
 .site-card { display: flex; align-items: center; gap: 12px; padding: 4px 2px 12px; }
 .site-card .fav { width: 40px; height: 40px; border-radius: 11px; }
@@ -109,6 +111,26 @@ kbd { font: 11px var(--mono); color: var(--faint); border: 1px solid var(--line)
 
 .fav { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--sunken); border: 1px solid var(--line); overflow: hidden; flex: none; font: 700 13px var(--display); color: var(--slate); }
 .fav img { width: 60%; height: 60%; }
+/* No real favicon: a monogram tinted by a hue derived from the site name, so
+   every site keeps the same recognisable colour. */
+.fav.mono { background: hsl(var(--hue) 72% 94%); border-color: hsl(var(--hue) 45% 86%); color: hsl(var(--hue) 55% 30%); }
+@media (prefers-color-scheme: dark) {
+  .fav.mono { background: hsl(var(--hue) 32% 20%); border-color: hsl(var(--hue) 28% 28%); color: hsl(var(--hue) 75% 80%); }
+}
+
+/* ---- password health + guided fixes ---------------------------------------------------- */
+.health { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; margin-bottom: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.health-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; flex: none; background: var(--risk-wash); color: var(--risk); }
+.health.ok .health-icon { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+.health h2 { margin: 1px 0 2px; font: 600 14px var(--display); }
+.health p { margin: 0 0 9px; color: var(--slate); font-size: 12.5px; }
+.health.ok p { margin: 0; }
+.fix-callout { padding: 12px; border-radius: 12px; background: var(--risk-wash); border: 1px solid color-mix(in srgb, var(--risk) 30%, transparent); }
+.fix-callout.soft { background: var(--brass-wash); border-color: color-mix(in srgb, var(--brass) 40%, transparent); }
+.fix-callout b { display: block; font-size: 13px; color: var(--risk); }
+.fix-callout.soft b { color: var(--brass); }
+.fix-callout p { margin: 3px 0 10px; font-size: 12.5px; color: var(--ink); }
+.fix-callout p:last-child { margin-bottom: 0; }
 
 .rows { display: flex; flex-direction: column; gap: 6px; }
 .row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; cursor: default; }
@@ -125,7 +147,7 @@ kbd { font: 11px var(--mono); color: var(--faint); border: 1px solid var(--line)
 .tools .icon-btn svg { width: 15px; height: 15px; }
 .chev { color: var(--faint); width: 16px; height: 16px; }
 
-.tag { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 99px; font-size: 10.5px; font-weight: 600; background: var(--risk-wash); color: var(--risk); }
+.tag { display: inline-block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 18px; height: 18px; padding: 0 7px; border-radius: 99px; font-size: 10.5px; font-weight: 600; background: var(--risk-wash); color: var(--risk); }
 .tag.soft { background: var(--brass-wash); color: var(--brass); }
 
 .group { display: flex; align-items: center; gap: 8px; margin: 12px 2px 4px; font-weight: 600; font-size: 12px; color: var(--slate); }
@@ -216,7 +238,7 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--cobalt); }
 .note b { color: var(--ink); }
 
 /* ---- gates (locked / setup) ----------------------------------------------------------------- */
-.gate { flex: 1; padding: 34px 26px 24px; text-align: center; }
+.gate { flex: 1; min-height: 0; overflow-y: auto; padding: 34px 26px 24px; text-align: center; }
 .gate-mark { width: 72px; height: 72px; margin-bottom: 14px; }
 .gate h1 { margin: 0 0 6px; font: 650 19px/1.25 var(--display); letter-spacing: -0.015em; }
 .gate p { margin: 0 auto 18px; max-width: 290px; color: var(--slate); }
@@ -227,7 +249,7 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--cobalt); }
 .kv code { font: 12px var(--mono); color: var(--ink); background: var(--surface); border: 1px solid var(--line); padding: 7px 9px; border-radius: 8px; user-select: all; }
 
 /* ---- bottom nav ----------------------------------------------------------------------------- */
-.nav { position: sticky; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-top: 1px solid var(--line); }
+.nav { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-top: 1px solid var(--line); }
 .nav-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 9px; border: 0; background: none; color: var(--faint); font-size: 11px; font-weight: 600; cursor: pointer; }
 .nav-btn svg { width: 19px; height: 19px; }
 .nav-btn:hover { color: var(--slate); }

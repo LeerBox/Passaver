@@ -1,0 +1,19 @@
+name: Feature idea
+description: Suggest something that would make Passaver better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+  - type: markdown
+    attributes:
+      value: |
+        Passaver keeps the vault on one PC, sealed to it, with no cloud. Ideas that keep that promise are the easiest to accept.

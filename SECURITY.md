@@ -13,7 +13,8 @@ Please don't open a public issue for a security problem. Use **Security → Repo
 | Optional PIN | Vault key = HKDF-SHA256(device key ‖ PBKDF2-SHA256(PIN, 600,000 iterations)). The PIN is never stored. After 5 wrong attempts, each further attempt waits exponentially longer, up to 1 hour. |
 | Storage | The vault and the wrapped key live in `%LOCALAPPDATA%\Passaver\data`. Writes are atomic and keep one backup. A revision check stops two browsers from overwriting each other. |
 | Filling | A login fills automatically (keyboard shortcut, Enter in the popup) only on the exact host where it was saved. Logins from sibling hosts of the same registrable domain are offered only as a choice labelled with their host, and a sign-in there never overwrites them. Shared-hosting suffixes such as `onrender.com` and `workers.dev` isolate each customer subdomain. A frame receives a password only after its own origin is checked, and a login saved on HTTPS is never filled into HTTP. |
-| Network | Passaver makes no network requests and has no telemetry. Site icons come from the browser's local favicon cache. |
+| Guided fixes | Fix remembers, for 20 minutes, which login the user is changing. A new password typed anywhere on that login's site (registrable domain) updates it, because change-password pages often live on another host. A password Passaver generated is applied immediately with an Undo. One the user typed needs a confirmation that names the login. Nothing is ever sent to the site; Passaver only opens `/.well-known/change-password` in a new tab. |
+| Network | The extension makes no network requests of its own and has no telemetry. The only page it opens by itself is a site's change-password page, when the user presses Fix. Site icons come from the browser's local favicon cache. |
 
 ## What it does not protect against
 

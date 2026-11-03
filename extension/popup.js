@@ -9,6 +9,8 @@ const ICON = {
   key: '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M14 9l2 2"/></svg>',
   chevron: '<svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>',
   warn: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg>',
+  shieldCheck: '<svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.4 3.4 8.2 8 9 4.6-.8 8-4.6 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>',
+  shieldAlert: '<svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.4 3.4 8.2 8 9 4.6-.8 8-4.6 8-9V6l-8-3Z"/><path d="M12 8v4M12 15.5h.01"/></svg>',
 };
 
 const ISSUES = {
@@ -17,6 +19,12 @@ const ISSUES = {
   http: { label: 'Not HTTPS', chip: 'Not HTTPS' },
   old: { label: 'Over a year old', chip: 'Over a year old', soft: true },
 };
+
+// Worst first: what an attacker exploits most easily is what to fix first.
+const SEVERITY = { weak: 4, reused: 3, http: 2, old: 1 };
+const severity = (e) => e.issues.reduce((s, k) => s + SEVERITY[k], 0);
+// Changing the password fixes these; a page without HTTPS needs the site to change.
+const isFixable = (e) => e.issues.some((k) => k !== 'http');
 
 const state = {
   status: null,
@@ -55,18 +63,45 @@ function iconButton(svg, title, onClick) {
   return b;
 }
 
+// The browser answers every favicon request, with a generic placeholder when it
+// has no icon for a site. Fingerprint that placeholder once, and show a
+// colour-coded monogram instead of it.
+const faviconUrl = (pageUrl) => chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=32`);
+
+function pixels(img) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  c.getContext('2d').drawImage(img, 0, 0, 32, 32);
+  return c.toDataURL();
+}
+
+const placeholderIcon = new Promise((resolve) => {
+  const img = new Image();
+  img.onload = () => resolve(pixels(img));
+  img.onerror = () => resolve(null);
+  img.src = faviconUrl('https://passaver.invalid/');
+});
+
+function monogram(label, cls) {
+  const name = (label || '?').replace(/^www\./, '');
+  let hue = 0;
+  for (const ch of name) hue = (hue * 31 + ch.codePointAt(0)) % 360;
+  const tile = node('div', `${cls} mono`, name.charAt(0).toUpperCase());
+  tile.style.setProperty('--hue', String(hue));
+  return tile;
+}
+
 function favicon(url, label, cls = 'fav') {
-  const box = node('div', cls);
-  const letter = (label || '?').replace(/^www\./, '').charAt(0).toUpperCase();
-  if (!url) {
-    box.textContent = letter;
-    return box;
-  }
+  const box = monogram(label, cls);
+  if (!url) return box;
   const img = new Image();
   img.alt = '';
-  img.src = chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent(url)}&size=32`);
-  img.onerror = () => box.replaceChildren(letter);
-  box.append(img);
+  img.onload = async () => {
+    if (pixels(img) === (await placeholderIcon)) return;
+    box.classList.remove('mono');
+    box.replaceChildren(img);
+  };
+  img.src = faviconUrl(url);
   return box;
 }
 
@@ -160,7 +195,6 @@ $('ring').addEventListener('click', () => {
 
 function showOnly(...ids) {
   for (const id of ['app', 'nav', 'setup', 'lockScreen', 'editor']) $(id).hidden = !ids.includes(id);
-  document.documentElement.style.overflow = '';
 }
 
 let waitTimer = 0;
@@ -346,10 +380,10 @@ async function fill(entry) {
   else toast(r?.error || 'Passaver could not fill this page');
 }
 
-function loginRow(e, { onActivate, showTools = true, primary = null }) {
+function loginRow(e, { onActivate, showTools = true, primary = null, avatar = null, where = '' }) {
   const row = node('div', 'row');
   row.dataset.id = e.id;
-  row.append(node('div', 'initial', (e.username || e.site || '?').charAt(0).toUpperCase()));
+  row.append(avatar || node('div', 'initial', (e.username || e.site || '?').charAt(0).toUpperCase()));
   const who = node('div', 'who');
   who.append(node('div', 'name', e.username || 'No username'));
   const sub = node('div', 'sub');
@@ -358,6 +392,7 @@ function loginRow(e, { onActivate, showTools = true, primary = null }) {
   } else {
     sub.append(node('span', null, e.title || relTime(e.lastUsed)));
   }
+  if (where) sub.append(node('span', null, where));
   who.append(sub);
   row.append(who);
   if (showTools) {
@@ -468,8 +503,48 @@ function renderChips() {
   }
 }
 
+async function startFix(e) {
+  const r = await send({ type: 'startRotation', id: e.id });
+  if (r?.ok) window.close();
+  else toast(r?.error || 'Passaver could not open the site');
+}
+
+function healthAdvice(c) {
+  const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+  if (c.weak) return `Start with the ${plural(c.weak, 'weak password', 'weak passwords')}: they are the easiest to guess.`;
+  if (c.reused) return `Start with the ${plural(c.reused, 'reused password', 'reused passwords')}: one leak opens every site that shares it.`;
+  if (c.http) return `${plural(c.http, 'login was', 'logins were')} saved on a page without HTTPS.`;
+  return `${plural(c.old, 'password is', 'passwords are')} over a year old. Changing them limits damage from leaks you never heard about.`;
+}
+
+function renderHealthCard(q) {
+  const card = $('healthCard');
+  card.replaceChildren();
+  const h = state.health;
+  card.hidden = state.filter !== 'all' || Boolean(q) || !h?.total;
+  if (card.hidden) return;
+  const flagged = state.all.filter((e) => e.issues.length).length;
+  card.className = flagged ? 'health' : 'health ok';
+  const icon = node('div', 'health-icon');
+  icon.innerHTML = flagged ? ICON.shieldAlert : ICON.shieldCheck;
+  const text = node('div');
+  if (flagged) {
+    text.append(node('h2', null, `${flagged} login${flagged > 1 ? 's need' : ' needs'} attention`), node('p', null, healthAdvice(h.counts)));
+    const review = node('button', 'btn primary small', 'Review and fix');
+    review.addEventListener('click', () => {
+      state.filter = 'attention';
+      renderVault();
+    });
+    text.append(review);
+  } else {
+    text.append(node('h2', null, `All ${h.total} logins look healthy`), node('p', null, 'Strong, unique and saved on secure pages.'));
+  }
+  card.append(icon, text);
+}
+
 function renderVault() {
   if (state.view !== 'vault') return;
+  renderHealthCard($('search').value.trim());
   renderChips();
   const list = $('vaultList');
   list.replaceChildren();
@@ -488,8 +563,31 @@ function renderVault() {
     list.append(empty);
   }
 
+  // Issue filters: one flat list, worst problem first, each with a Fix button.
+  if (state.filter !== 'all') {
+    rows.sort((a, b) => severity(b) - severity(a) || a.site.localeCompare(b.site));
+    for (const e of rows) {
+      let primary;
+      if (isFixable(e)) {
+        primary = node('button', 'btn primary small', 'Fix');
+        primary.title = `Change this password on ${shortHost(e.host)}`;
+        primary.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          startFix(e);
+        });
+      } else {
+        primary = node('span');
+        primary.innerHTML = ICON.chevron;
+      }
+      const row = loginRow(e, { onActivate: () => openEditor(e), primary, showTools: false, avatar: favicon(e.origin, e.site), where: shortHost(e.host) });
+      row.classList.add('nav-row');
+      row.addEventListener('click', () => openEditor(e));
+      list.append(row);
+    }
+  }
+
   let lastSite = '';
-  for (const e of rows) {
+  for (const e of state.filter === 'all' ? rows : []) {
     if (e.site !== lastSite) {
       const g = node('div', 'group');
       g.append(favicon(e.origin, e.site), node('span', null, e.site));
@@ -664,13 +762,40 @@ function adviseOnPassword() {
     const r = await send({ type: 'checkPassword', password: pw, id: state.editing?.id });
     if (r?.reusedOn?.length && $('edPass').value === pw) {
       advice.className = 'meter-label warn';
-      advice.textContent = `Also used on ${listSites(r.reusedOn)}. A unique password keeps one leak from opening other accounts.`;
+      advice.textContent = `Also used on ${listSites(r.reusedOn.map(shortHost))}. A unique password keeps one leak from opening other accounts.`;
     }
   }, 250);
 }
 
+const FIX_COPY = {
+  weak: (h) => ['This password is easy to guess', `Change it on ${h}. Passaver offers a strong password on the site's form and updates this login when you save the change.`],
+  reused: (h) => ['This password is also used on other sites', `If one of those sites leaks, this account is exposed too. Change it on ${h} and Passaver updates this login.`],
+  old: (h) => ['This password is over a year old', `Changing it on ${h} limits the damage of leaks you never heard about.`],
+  http: (h) => ['Saved on a page without HTTPS', `Anyone on the same network could read what is typed there. If ${h} has an HTTPS version, sign in there and save the login again.`],
+};
+
+function renderFixCallout(entry) {
+  const box = $('edFix');
+  box.replaceChildren();
+  const issues = entry?.issues || [];
+  box.hidden = !issues.length;
+  if (!issues.length) return;
+  const main = [...issues].sort((a, b) => SEVERITY[b] - SEVERITY[a])[0];
+  const host = shortHost(entry.host);
+  const [title, text] = FIX_COPY[main](host);
+  box.className = main === 'old' ? 'fix-callout soft' : 'fix-callout';
+  box.append(node('b', null, title), node('p', null, text));
+  if (main !== 'http') {
+    const b = node('button', 'btn primary small', `Change on ${host}`);
+    b.type = 'button';
+    b.addEventListener('click', () => startFix(entry));
+    box.append(b);
+  }
+}
+
 async function openEditor(entry, preset = {}) {
   state.editing = entry;
+  renderFixCallout(entry);
   $('edTitle').textContent = entry ? `Edit login for ${shortHost(entry.host)}` : 'New login';
   $('edSave').textContent = 'Save login';
   $('edDelete').hidden = !entry;
@@ -683,13 +808,11 @@ async function openEditor(entry, preset = {}) {
   $('edLabel').value = entry?.title || '';
   adviseOnPassword();
   $('editor').hidden = false;
-  document.documentElement.style.overflow = 'hidden'; // only the sheet scrolls
   ($('edUrl').value ? $('edUser') : $('edUrl')).focus();
 }
 
 function closeEditor() {
   $('editor').hidden = true;
-  document.documentElement.style.overflow = '';
   $('edPass').value = '';
   state.editing = null;
 }

@@ -17,25 +17,49 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- local test site ------------------------------------------------------------------
 
-const page = (body) =>
-  `<!doctype html><meta charset=utf-8><title>Sign in</title><body style="font:16px 'Segoe UI',sans-serif;padding:40px">${body}</body>`;
+// A plain, neutral demo site that follows the viewer's light/dark preference
+// (and matches GitHub's page colours, so screenshots sit cleanly in the README).
+const page = (body) => `<!doctype html><meta charset=utf-8><meta name="color-scheme" content="light dark"><title>Example</title>
+<style>
+  body { margin: 0; padding: 40px; font: 15px "Segoe UI", sans-serif; background: #ffffff; color: #1f2328; }
+  input { display: block; box-sizing: border-box; width: 320px; height: 40px; margin: 0 0 14px; padding: 0 12px;
+    font: inherit; color: inherit; background: #ffffff; border: 1px solid #d0d7de; border-radius: 8px; }
+  button { height: 40px; padding: 0 18px; font: 600 14px "Segoe UI", sans-serif; color: #ffffff; background: #1f2328; border: 0; border-radius: 8px; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d1117; color: #e6edf3; }
+    input { background: #010409; border-color: #30363d; }
+    button { background: #e6edf3; color: #0d1117; }
+  }
+</style><body>${body}</body>`;
 
 const ROUTES = {
   '/login': `<form action="/welcome" method="post">
-      <input id="email" type="email" name="email" placeholder="Email"><br><br>
-      <input id="pw" type="password" name="password" placeholder="Password"><br><br>
+      <input id="email" type="email" name="email" placeholder="Email">
+      <input id="pw" type="password" name="password" placeholder="Password">
       <button id="go" type="submit">Sign in</button></form>`,
   '/signup': `<form id="signup" action="/welcome" method="post">
-      <input id="email" type="email" name="email" placeholder="Email"><br><br>
-      <input id="pw" type="password" name="password" autocomplete="new-password" placeholder="Password"><br><br>
-      <input id="pw2" type="password" name="confirm" autocomplete="new-password" placeholder="Confirm"><br><br>
+      <input id="email" type="email" name="email" placeholder="Email">
+      <input id="pw" type="password" name="password" autocomplete="new-password" placeholder="Password">
+      <input id="pw2" type="password" name="confirm" autocomplete="new-password" placeholder="Confirm">
       <button id="go" type="submit">Create account</button></form>`,
   '/step1': `<form action="/step2" method="get"><input id="email" type="email" name="email" autocomplete="username"><button id="go">Next</button></form>`,
   '/step2': `<form action="/welcome" method="post"><input id="pw" type="password" name="pw"><button id="go">Sign in</button></form>`,
+  '/account/password': `<form id="change" action="/welcome" method="post">
+      <input id="current" type="password" name="current" autocomplete="current-password" placeholder="Current password">
+      <input id="pw" type="password" name="new" autocomplete="new-password" placeholder="New password">
+      <input id="pw2" type="password" name="confirm" autocomplete="new-password" placeholder="Confirm new password">
+      <button id="go" type="submit">Change password</button></form>`,
 };
+
+// The W3C "well-known change-password URL": sites redirect it to their own page.
+const REDIRECTS = { '/.well-known/change-password': '/account/password' };
 
 export async function startSite() {
   const server = http.createServer((req, res) => {
+    if (REDIRECTS[req.url]) {
+      res.writeHead(302, { location: REDIRECTS[req.url] });
+      return res.end();
+    }
     res.setHeader('content-type', 'text/html');
     const route = Object.keys(ROUTES).find((r) => req.url.startsWith(r));
     res.end(page(route ? ROUTES[route] : '<h1>Welcome</h1>'));
@@ -151,6 +175,18 @@ export async function startEdge({ env = {}, args = [] } = {}) {
     return { targetId, sessionId };
   }
 
+  /** Attaches to a tab the extension opened itself (e.g. Fix), found by URL. */
+  async function attachTo(urlPart) {
+    const target = await waitFor(async () => {
+      const { targetInfos } = await cdp('Target.getTargets');
+      return targetInfos.find((t) => t.type === 'page' && t.url.includes(urlPart));
+    }, `tab with ${urlPart}`);
+    const { sessionId } = await cdp('Target.attachToTarget', { targetId: target.targetId, flatten: true });
+    await cdp('DOM.enable', {}, sessionId);
+    await cdp('Page.enable', {}, sessionId);
+    return { targetId: target.targetId, sessionId };
+  }
+
   async function close() {
     try { ws?.close(); } catch {}
     edge.kill();
@@ -181,7 +217,7 @@ export async function startEdge({ env = {}, args = [] } = {}) {
     await sleep(1500);
     const msg = (m) => evalIn(popup.sessionId, `chrome.runtime.sendMessage(${JSON.stringify(m)})`);
 
-    return { cdp, evalIn, waitFor, clickText, shadowHasText, screenshot, openTab, msg, swS, popS: popup.sessionId, dataDir, close };
+    return { cdp, evalIn, waitFor, clickText, shadowHasText, screenshot, openTab, attachTo, msg, swS, popS: popup.sessionId, dataDir, close };
   } catch (e) {
     await close();
     throw e;
